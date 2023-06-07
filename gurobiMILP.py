@@ -56,45 +56,45 @@ class gurobi_MILP:
         #                   lb = -10000000, ub= 10000000, name='Pbid')
         
         
-        if case_dict['uncertainty'] == True:
-            self.uncertainty_dict = self.model_dict['uncertainty']
-            self.wt_uncertainty = self.uncertainty_dict['wt']
-            self.pv_uncertainty = self.uncertainty_dict['pv']
-            self.smp_uncertainty = self.uncertainty_dict['smp']
+        
+        self.uncertainty_dict = self.model_dict['uncertainty']
+        self.wt_uncertainty = self.uncertainty_dict['wt']
+        self.pv_uncertainty = self.uncertainty_dict['pv']
+        self.smp_uncertainty = self.uncertainty_dict['smp']
+        
+        self.P_wt_uncertainty = self.m.addVars(vpp.nWT, self.nTimeslot, vtype = GRB.CONTINUOUS,
+                                               lb = -self.wt_uncertainty , ub = self.wt_uncertainty ,
+                                               name = 'P_wt_uncertainty')
+        self.P_pv_uncertainty = self.m.addVars(vpp.nPV, self.nTimeslot, vtype = GRB.CONTINUOUS,
+                                               lb = - self.pv_uncertainty, ub = self.pv_uncertainty,
+                                               name = 'P_pv_uncertainty')
+        
+        self.Smp_uncertainty = self.m.addVars(self.nTimeslot, vtype = GRB.CONTINUOUS,
+                                               lb = - self.smp_uncertainty, ub = self.smp_uncertainty,
+                                               name = 'Smp_uncertainty')
+       
             
-            self.P_wt_uncertainty = self.m.addVars(vpp.nWT, self.nTimeslot, vtype = GRB.CONTINUOUS,
-                                                   lb = -self.wt_uncertainty , ub = self.wt_uncertainty ,
-                                                   name = 'P_wt_uncertainty')
-            self.P_pv_uncertainty = self.m.addVars(vpp.nPV, self.nTimeslot, vtype = GRB.CONTINUOUS,
-                                                   lb = - self.pv_uncertainty, ub = self.pv_uncertainty,
-                                                   name = 'P_pv_uncertainty')
-            
-            self.Smp_uncertainty = self.m.addVars(self.nTimeslot, vtype = GRB.CONTINUOUS,
-                                                   lb = - self.smp_uncertainty, ub = self.smp_uncertainty,
-                                                   name = 'Smp_uncertainty')
-        else
-            print("No Uncertainty Sets in this case")
         
         
         
         if self.case_dict['res_var'] == True:
-            try:
-                if self.wt_list:
-                    self.P_wt = self.m.addVars(vpp.nWT, self.nTimeslot, vtype =GRB.CONTINUOUS,
-                                              lb=[[self.wt_list[i].min_power * (1-self.wt_uncertainty)
-                                                   for _ in range(self.nTimeslot)] for i in range(self.nWT)],
-                                              ub=[[self.wt_list[i].max_power * (1+self.wt_uncertainty)
-                                                   for _ in range(self.nTimeslot)] for i in range(self.nWT)],
-                                              name='P_wt'
-                                              )  
-                if self.pv_list:
-                    self.P_pv = self.m.addVars(vpp.nPV, self.nTimeslot, vtype =GRB.CONTINUOUS,
-                                              lb=[[self.pv_list[i].min_power * (1-self.pv_uncertainty)
-                                                   for _ in range(self.nTimeslot)] for i in range(self.nPV)],
-                                              ub=[[self.pv_list[i].max_power * (1+self.pv_uncertainty)
-                                                   for _ in range(self.nTimeslot)] for i in range(self.nPV)],
-                                              name='P_pv'
-                                              )
+            
+            if self.wt_list:
+                self.P_wt = self.m.addVars(vpp.nWT, self.nTimeslot, vtype =GRB.CONTINUOUS,
+                                          lb=[[self.wt_list[i].min_power * (1-self.wt_uncertainty)
+                                               for _ in range(self.nTimeslot)] for i in range(self.nWT)],
+                                          ub=[[self.wt_list[i].max_power * (1+self.wt_uncertainty)
+                                               for _ in range(self.nTimeslot)] for i in range(self.nWT)],
+                                          name='P_wt'
+                                          )  
+            if self.pv_list:
+                self.P_pv = self.m.addVars(vpp.nPV, self.nTimeslot, vtype =GRB.CONTINUOUS,
+                                          lb=[[self.pv_list[i].min_power * (1-self.pv_uncertainty)
+                                               for _ in range(self.nTimeslot)] for i in range(self.nPV)],
+                                          ub=[[self.pv_list[i].max_power * (1+self.pv_uncertainty)
+                                               for _ in range(self.nTimeslot)] for i in range(self.nPV)],
+                                          name='P_pv'
+                                          )
                 
             except Exception as e:
                 print("")
