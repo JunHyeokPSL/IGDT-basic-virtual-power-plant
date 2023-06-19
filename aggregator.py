@@ -5,6 +5,7 @@ Created on Thu Jun  1 15:03:24 2023
 @author: junhyeok
 """
 
+import numpy as np
 import pandas as pd
 
 # Define the aggrergator class
@@ -25,12 +26,19 @@ class aggregator:
         self.pv_list = []
         self.ess_list = []
         
+        self.model_dict = model_dict
+        self.nTimeslot = self.model_dict['nTimeslot']
+        
         try:
-            self.model_dict = model_dict
             self.uncertainty_dict = self.model_dict['uncertainty']
             self.wt_uncert = self.uncertainty_dict['wt']
             self.pv_uncert = self.uncertainty_dict['pv']
-        except:
+        except Exception as e:
+            print("Error")
+            print(e)
+            print("Class Aggregator")
+            print("No Uncertainty Sets in this cases")
+            print("No Uncertainty Sets in this cases")
             print("No Uncertainty Sets in this cases")
         self.initialize_res()
     
@@ -82,23 +90,32 @@ class aggregator:
     def set_res_table(self):
         
         data_list = []
-        self.total_max_power = 0
-        self.total_min_power = 0
+        self.total_max_power = np.zeros(self.nTimeslot) 
+        self.total_min_power = np.zeros(self.nTimeslot)
         res_list = [self.wt_list, self.pv_list, self.ess_list]
         
         try:
-            uncertainty_list = [self.wt_uncert, self.pv_uncert, 0]
+            uncertainty_list = [self.wt_uncert, self.pv_uncert, np.zeros(self.nTimeslot)]
             for i in range(len(res_list)):
                 for j in range(len(res_list[i])):
                     data_list.append(res_list[i][j].get_res_data())
-                    self.total_max_power += res_list[i][j].max_power * (1+uncertainty_list[i])
-                    self.total_min_power += res_list[i][j].min_power * (1-uncertainty_list[i])
-        except:
+                    for step in range(self.nTimeslot):
+                        self.total_max_power[step] += res_list[i][j].max_power * (1+uncertainty_list[i][step])
+                        self.total_min_power[step] += res_list[i][j].min_power * (1-uncertainty_list[i][step])
+                    
+        except Exception as e:
+            print("Error")
+            print(e)
+            
+            print("Aggregator set_res_table method")
+            print("Uncertainty does not exist")
+            print("Uncertainty does not exist")
+            print("Uncertainty does not exist")
             for i in range(len(res_list)):
                 for j in range(len(res_list[i])):
                     data_list.append(res_list[i][j].get_res_data())
-                    self.total_max_power += res_list[i][j].max_power 
-                    self.total_min_power += res_list[i][j].min_power           
+                    self.total_max_power[j] += res_list[i][j].max_power 
+                    self.total_min_power[j] += res_list[i][j].min_power           
             
         self.res_table = pd.DataFrame(data_list,columns=['name', 'type', 'number', 'min_power', 'max_power','capacity'])
         

@@ -29,9 +29,16 @@ class gurobi_MILP:
         self.nESS = self.vpp.nESS      
         
         self.case_dict = case_dict
-
+        self.is_res_var = self.case_dict['res_var'] == True
+        self.is_uncertainty = 'uncertainty' in self.model_dict 
+        self.is_case2 = self.case_dict['case'] == 2
+        self.is_case_risk_averse = self.case_dict['bid_type'] == 'risk_averse'
+        
         self.UNIT_TIME = self.case_dict['UNIT_TIME'] 
         self.nTimeslot = int (24 / self.UNIT_TIME)
+        
+        self.check_set = {}
+        
         
     def add_Parameters(self):
         
@@ -50,70 +57,95 @@ class gurobi_MILP:
         vpp = self.vpp
 
         self.Pbid = self.m.addVars(self.nTimeslot, vtype =GRB.CONTINUOUS,
-                          lb = vpp.total_min_power, ub= vpp.total_max_power, name='Pbid')
+                          lb = [vpp.total_min_power[i] for i in range(self.nTimeslot)],
+                          ub= [vpp.total_max_power[i] for i in range(self.nTimeslot)],
+                          name='Pbid')
         
         # self.Pbid = self.m.addVars(self.nTimeslot, vtype =GRB.CONTINUOUS,
         #                   lb = -10000000, ub= 10000000, name='Pbid')
         
-        
-        
-        self.uncertainty_dict = self.model_dict['uncertainty']
-        self.wt_uncertainty = self.uncertainty_dict['wt']
-        self.pv_uncertainty = self.uncertainty_dict['pv']
-        self.smp_uncertainty = self.uncertainty_dict['smp']
-        
-        self.P_wt_uncertainty = self.m.addVars(vpp.nWT, self.nTimeslot, vtype = GRB.CONTINUOUS,
-                                               lb = -self.wt_uncertainty , ub = self.wt_uncertainty ,
-                                               name = 'P_wt_uncertainty')
-        self.P_pv_uncertainty = self.m.addVars(vpp.nPV, self.nTimeslot, vtype = GRB.CONTINUOUS,
-                                               lb = - self.pv_uncertainty, ub = self.pv_uncertainty,
-                                               name = 'P_pv_uncertainty')
-        
-        self.Smp_uncertainty = self.m.addVars(self.nTimeslot, vtype = GRB.CONTINUOUS,
-                                               lb = - self.smp_uncertainty, ub = self.smp_uncertainty,
-                                               name = 'Smp_uncertainty')
-       
+        if self.is_res_var:
             
-        
-        
-        
-        if self.case_dict['res_var'] == True:
-            
-            if self.wt_list:
-                self.P_wt = self.m.addVars(vpp.nWT, self.nTimeslot, vtype =GRB.CONTINUOUS,
-                                          lb=[[self.wt_list[i].min_power * (1-self.wt_uncertainty)
-                                               for _ in range(self.nTimeslot)] for i in range(self.nWT)],
-                                          ub=[[self.wt_list[i].max_power * (1+self.wt_uncertainty)
-                                               for _ in range(self.nTimeslot)] for i in range(self.nWT)],
-                                          name='P_wt'
-                                          )  
-            if self.pv_list:
-                self.P_pv = self.m.addVars(vpp.nPV, self.nTimeslot, vtype =GRB.CONTINUOUS,
-                                          lb=[[self.pv_list[i].min_power * (1-self.pv_uncertainty)
-                                               for _ in range(self.nTimeslot)] for i in range(self.nPV)],
-                                          ub=[[self.pv_list[i].max_power * (1+self.pv_uncertainty)
-                                               for _ in range(self.nTimeslot)] for i in range(self.nPV)],
-                                          name='P_pv'
-                                          )
+            if 'uncertainty' in self.model_dict:
+                self.uncertainty_dict = self.model_dict['uncertainty']
                 
-            except Exception as e:
-                print("")
-                print(e)
-                print("gurobi_MILP add Variables")
-                print("No Uncertainty Sets in this case")
-                print("")
+                self.wt_uncertainty = self.uncertainty_dict['wt']
+                self.pv_uncertainty = self.uncertainty_dict['pv']
+                self.smp_uncertainty = self.uncertainty_dict['smp']
+                
+                if self.is_case_risk_averse:
+                    self.P_wt_uncertainty = self.m.addVars(vpp.nWT, self.nTimeslot, vtype = GRB.CONTINUOUS,
+                                                           lb = [[-self.wt_uncertainty[i] 
+                                                                  for _ in range(vpp.nWT) for i in range(self.nTimeslot)]],
+                                                           ub = [[-self.wt_uncertainty[i] 
+                                                                 for _ in range(vpp.nWT) for i in range(self.nTimeslot)]],
+                                                           name = 'P_wt_uncertainty')
+                    self.P_pv_uncertainty = self.m.addVars(vpp.nPV, self.nTimeslot, vtype = GRB.CONTINUOUS,
+                                                           lb = [[-self.pv_uncertainty[i] 
+                                                                  for _ in range(vpp.nPV) for i in range(self.nTimeslot)]],
+                                                           ub = [[-self.pv_uncertainty[i] 
+                                                                 for _ in range(vpp.nPV) for i in range(self.nTimeslot)]],
+                                                           name = 'P_pv_uncertainty')
+                    
+                    self.smp_uncertainty = self.m.addVars(self.nTimeslot, vtype = GRB.CONTINUOUS,
+                                                           lb = [-self.smp_uncertainty[step] for step in range(self.nTimeslot)],
+                                                           ub = [self.smp_uncertainty[step] for step in range(self.nTimeslot)],
+                                                           name = 'Smp_uncertainty')
+
+                else:
+                    
+                    self.P_wt_uncertainty = self.m.addVars(vpp.nWT, self.nTimeslot, vtype = GRB.CONTINUOUS,
+                                                           lb = [[-self.wt_uncertainty[i] 
+                                                                  for _ in range(vpp.nWT) for i in range(self.nTimeslot)]],
+                                                           ub = [[self.wt_uncertainty[i] 
+                                                                 for _ in range(vpp.nWT) for i in range(self.nTimeslot)]],
+                                                           name = 'P_wt_uncertainty')
+                    self.P_pv_uncertainty = self.m.addVars(vpp.nPV, self.nTimeslot, vtype = GRB.CONTINUOUS,
+                                                           lb = [[-self.pv_uncertainty[i] 
+                                                                  for _ in range(vpp.nPV) for i in range(self.nTimeslot)]],
+                                                           ub = [[self.pv_uncertainty[i] 
+                                                                 for _ in range(vpp.nPV) for i in range(self.nTimeslot)]],
+                                                           name = 'P_pv_uncertainty')
+                    
+                    self.smp_uncertainty = self.m.addVars(self.nTimeslot, vtype = GRB.CONTINUOUS,
+                                                           lb = [-self.smp_uncertainty[step] for step in range(self.nTimeslot)],
+                                                           ub = [self.smp_uncertainty[step] for step in range(self.nTimeslot)],
+                                                           name = 'Smp_uncertainty')                   
+                    
+            
                 if self.wt_list:
                     self.P_wt = self.m.addVars(vpp.nWT, self.nTimeslot, vtype =GRB.CONTINUOUS,
-                                              lb=[[self.wt_list[i].min_power for _ in range(self.nTimeslot)] for i in range(self.nWT)],
-                                              ub=[[self.wt_list[i].max_power for _ in range(self.nTimeslot)] for i in range(self.nWT)],
+                                              lb=[[self.wt_list[i].min_power * (1-self.wt_uncertainty[step])
+                                                   for step in range(self.nTimeslot)] for i in range(self.nWT)],
+                                              ub=[[self.wt_list[i].max_power * (1+self.wt_uncertainty[step])
+                                                   for step in range(self.nTimeslot)] for i in range(self.nWT)],
                                               name='P_wt'
                                               )  
                 if self.pv_list:
                     self.P_pv = self.m.addVars(vpp.nPV, self.nTimeslot, vtype =GRB.CONTINUOUS,
-                                              lb=[[self.pv_list[i].min_power for _ in range(self.nTimeslot)] for i in range(self.nPV)],
-                                              ub=[[self.pv_list[i].max_power for _ in range(self.nTimeslot)] for i in range(self.nPV)],
+                                              lb=[[self.pv_list[i].min_power * (1-self.pv_uncertainty[step])
+                                                   for step in range(self.nTimeslot)] for i in range(self.nPV)],
+                                              ub=[[self.pv_list[i].max_power * (1+self.pv_uncertainty[step])
+                                                   for step in range(self.nTimeslot)] for i in range(self.nPV)],
                                               name='P_pv'
                                               )
+        else:
+            print("")
+            print("gurobi_MILP add Variables")
+            print("No Uncertainty Sets in this case")
+            print("")
+            if self.wt_list:
+                self.P_wt = self.m.addVars(vpp.nWT, self.nTimeslot, vtype =GRB.CONTINUOUS,
+                                          lb=[[self.wt_list[i].min_power for _ in range(self.nTimeslot)] for i in range(self.nWT)],
+                                          ub=[[self.wt_list[i].max_power for _ in range(self.nTimeslot)] for i in range(self.nWT)],
+                                          name='P_wt'
+                                          )  
+            if self.pv_list:
+                self.P_pv = self.m.addVars(vpp.nPV, self.nTimeslot, vtype =GRB.CONTINUOUS,
+                                          lb=[[self.pv_list[i].min_power for _ in range(self.nTimeslot)] for i in range(self.nPV)],
+                                          ub=[[self.pv_list[i].max_power for _ in range(self.nTimeslot)] for i in range(self.nPV)],
+                                          name='P_pv'
+                                          )
     
         if self.ess_list:
             self.P_essChg = self.m.addVars(vpp.nESS, self.nTimeslot, vtype =GRB.CONTINUOUS,
@@ -142,34 +174,21 @@ class gurobi_MILP:
                              
     def add_res_constraints(self):
         
-        if self.case_dict['res_var'] == True:
+        if self.is_res_var:
             
             for j in range(self.nTimeslot):
                 
                 if self.case_dict['case'] == 2:
 
-                    if self.case_dict['bid_type'] == 'risk_averse':
-
-                        for i in range(self.nWT):
-                            self.m.addConstr(self.P_wt[i,j] == (1 - self.P_wt_uncertainty[i,j] ) *                                       
-                                             self.wt_list[i].max_power * self.wt_list[i].profile[j],
-                                            name=f'const_wt{i}_{j}_profile_uncertainty')
-        
-                        for i in range(self.nPV):
-                            self.m.addConstr(self.P_pv[i,j] ==(1 - self.P_pv_uncertainty[i,j] ) *                                           
-                                             self.pv_list[i].max_power * self.pv_list[i].profile[j],
-                                            name=f'const_pv{i}_{j}_profile_uncertainty')
-                        
-                    else:
-                        for i in range(self.nWT):
-                            self.m.addConstr(self.P_wt[i,j] == (1 + self.P_wt_uncertainty[i,j] ) *                                       
-                                             self.wt_list[i].max_power * self.wt_list[i].profile[j],
-                                            name=f'const_wt{i}_{j}_profile_uncertainty')
-        
-                        for i in range(self.nPV):
-                            self.m.addConstr(self.P_pv[i,j] ==(1 + self.P_pv_uncertainty[i,j] ) *                                           
-                                             self.pv_list[i].max_power * self.pv_list[i].profile[j],
-                                            name=f'const_pv{i}_{j}_profile_uncertainty')
+                    for i in range(self.nWT):
+                        self.m.addConstr(self.P_wt[i,j] == (1 + self.P_wt_uncertainty[i,j] ) *                                       
+                                         self.wt_list[i].max_power * self.wt_list[i].profile[j],
+                                        name=f'const_wt{i}_{j}_profile_uncertainty')
+    
+                    for i in range(self.nPV):
+                        self.m.addConstr(self.P_pv[i,j] ==(1 + self.P_pv_uncertainty[i,j] ) *                                           
+                                         self.pv_list[i].max_power * self.pv_list[i].profile[j],
+                                        name=f'const_pv{i}_{j}_profile_uncertainty')
                         
                 else:
                     for i in range(self.nWT):
@@ -270,33 +289,319 @@ class gurobi_MILP:
         
         P_BidSol = np.zeros([self.nTimeslot])
         
+        
+
         P_essDisSol = np.zeros([self.nESS, self.nTimeslot])
         P_essChgSol = np.zeros([self.nESS, self.nTimeslot])
         U_essDisSol = np.zeros([self.nESS, self.nTimeslot])
         U_essChgSol = np.zeros([self.nESS, self.nTimeslot])
-        if self.case_dict['res_var'] == True:
+        if self.is_res_var:
             P_wtSol = np.zeros([self.nWT, self.nTimeslot])
             P_pvSol = np.zeros([self.nPV, self.nTimeslot])
         
+        if self.is_uncertainty:
+            P_wt_uncertaintySol = np.zeros([self.nWT, self.nTimeslot])
+            P_pv_uncertaintySol = np.zeros([self.nPV, self.nTimeslot])
+            smp_uncertaintySol = np.zeros([self.nTimeslot])
+            
         for j in range(self.nTimeslot):
             P_BidSol[j] = self.m.getVarByName(f"Pbid[{j}]").X
+            
             for i in range(self.nESS):
                 P_essDisSol[i,j] = self.m.getVarByName(f"P_essDis[{i},{j}]").X
                 P_essChgSol[i,j] = self.m.getVarByName(f"P_essChg[{i},{j}]").X
                 U_essDisSol[i,j] = self.m.getVarByName(f"U_essDis[{i},{j}]").X
                 U_essChgSol[i,j] = self.m.getVarByName(f"U_essChg[{i},{j}]").X
+        
+            if self.is_res_var:    
+                for i in range(self.nWT):
+                    P_wtSol[i,j] = self.m.getVarByName(f"P_wt[{i},{j}]").X
+                for i in range(self.nPV):
+                    P_pvSol[i,j] = self.m.getVarByName(f"P_pv[{i},{j}]").X 
+            
+            if self.is_uncertainty:
+                try:
+                    smp_uncertaintySol[j] = self.m.getVarByName(f"smp_uncertainty[{j}]").X
+                except:
+                    abc = 3
+                for i in range(self.nWT):
+                    P_wt_uncertaintySol[i,j] = self.m.getVarByName(f"P_wt_uncertainty[{i},{j}]").X
+                for i in range(self.nPV):
+                    P_pv_uncertaintySol[i,j] = self.m.getVarByName(f"P_pv_uncertainty[{i},{j}]").X
+                    
+                        
                 
-                if self.case_dict['res_var'] == True:
-                    for i in range(self.nWT):
-                        P_wtSol[i,j] = self.m.getVarByName(f"P_wt[{i},{j}]").X
-                    for i in range(self.nPV):
-                        P_pvSol[i,j] = self.m.getVarByName(f"P_pv[{i},{j}]").X
+        P_dict = {'bid': P_BidSol}
+        U_dict = {}
         
-        P_dict = {'bid': P_BidSol, 'essDis': P_essDisSol, 'essChg': P_essChgSol}
-        U_dict = {'essDis': U_essDisSol, 'essChg': U_essChgSol}
-        
-        if self.case_dict['res_var'] == True:
+        if self.is_res_var:
+            P_dict['essDis'] = P_essDisSol
+            P_dict['essChg'] = P_essChgSol
+            U_dict['essDis'] = U_essDisSol
+            U_dict['essChg'] = U_essChgSol
+            
             P_dict['wt'] = P_wtSol
             P_dict['pv'] = P_pvSol
             
+        if self.is_uncertainty:
+            P_dict['wt_uncertainty'] = P_wt_uncertaintySol
+            P_dict['pv_uncertainty'] = P_pv_uncertaintySol
+            U_dict['smp_uncertainty'] = smp_uncertaintySol
+            
+        self.P_dict = P_dict
+        self.U_dict = U_dict
+        
         return P_dict, U_dict
+    
+    def check_res_var_sol(self,var):
+
+        print("**********")
+        print("Check_RES_Constaraint_Solution")
+        print("Check_RES_Constaraint_Solution")
+        print("Check_RES_Constaraint_Solution")
+        print("**********")
+
+        P_wt = self.P_dict['wt'] 
+        P_pv = self.P_dict['pv']
+        P_essDis = self.P_dict['essDis']
+        P_essChg = self.P_dict['essChg']
+        
+        self.check_set = {}
+        if self.wt_list:
+        
+            wt_lb = np.zeros([self.nWT, self.nTimeslot])
+            wt_ub = np.zeros([self.nWT, self.nTimeslot])
+            
+            for i in range(self.nWT):
+                print("***********")
+                
+                if self.is_uncertainty:
+                    print("P_wt[i,step], lb, ub, max_power, profile, uncert")
+                else:
+                    print("P_wt[i,step], lb, ub")
+                    
+                for step in range(self.nTimeslot):
+                    lb, ub = self.check_ub_lb('WT', var, i, step, P_wt[i,step])
+                    wt_lb[i,step] = lb
+                    wt_ub[i,step] = ub
+                                    
+                print("***********")
+            self.wt_bound_list = [P_wt,wt_lb,wt_ub]
+            self.check_set['wt'] = self.wt_bound_list
+            
+        if self.pv_list:
+        
+            pv_lb = np.zeros([self.nPV, self.nTimeslot])
+            pv_ub = np.zeros([self.nPV, self.nTimeslot])
+            
+            for i in range(self.nPV):
+                print("***********")
+                
+                if self.is_uncertainty:
+                    print("P_pv[i,step], lb, ub, max_power, profile, uncert")
+                else:
+                    print("P_pv[i,step], lb, ub")
+                    
+
+                for step in range(self.nTimeslot):
+                    lb, ub = self.check_ub_lb('PV', var, i, step, P_pv[i,step])
+                    pv_lb[i,step] = lb
+                    pv_ub[i,step] = ub
+            
+                print("***********")
+            self.pv_bound_list = [P_pv,pv_lb,pv_ub]
+            self.check_set['pv'] = self.pv_bound_list
+                    
+        return self.check_set
+    
+    
+    def check_ub_lb(self, res_type, var, i, step, component):
+
+        if res_type == 'WT':
+        
+            min_power = self.wt_list[i].min_power
+            max_power = self.wt_list[i].max_power
+            uncert = self.wt_uncertainty[step]
+            profile = self.wt_list[i].profile[step]
+            Puncert = self.P_dict['wt_uncertainty'][i,step]
+            
+        elif res_type == 'PV':
+            
+            min_power = self.pv_list[i].min_power
+            max_power = self.pv_list[i].max_power
+            uncert = self.pv_uncertainty[step]
+            profile = self.pv_list[i].profile[step]
+            Puncert = self.P_dict['pv_uncertainty'][i,step]
+
+        lb = min_power * (1-uncert)        
+        
+        if var == False and self.is_case_risk_averse:
+            ub = max_power * (1-uncert)
+        else:
+            ub = max_power * (1+uncert)
+        
+        
+        is_violate_lb = component < lb
+        if is_violate_lb:            
+            print("%%%%%%%%%%")
+            print(f"violate_{res_type}_lb[{i},{step}]:", component, lb)
+            print("%%%%%%%%%%")   
+            
+        is_violate_ub = component > ub
+        if is_violate_ub:            
+            print("%%%%%%%%%%")
+            print(f"violate_{res_type}_ub[{i},{step}]:", component, ub)
+            print("%%%%%%%%%%")   
+        
+        
+        if self.is_uncertainty:
+            print(f"var_P{res_type}_lb_ub[{i},{step}]_maxpower_profile_Puncertainty:", 
+                  component, lb, ub, 
+                  max_power, profile, Puncert)
+            
+        else:
+            print(f"var_P{res_type}_lb_ub[{i},{step}]:", 
+                  component, lb, ub)
+        
+        return lb, ub
+    
+        
+    
+    
+    def check_bid_const_sol(self):
+        
+        self.lhs_bid = []
+        self.rhs_bid = []
+        
+        P_bid = self.P_dict['bid']
+        P_wt = self.P_dict['wt'] 
+        P_pv = self.P_dict['pv']
+        P_essDis = self.P_dict['essDis']
+        P_essChg = self.P_dict['essChg']
+        
+        if self.is_res_var:
+            
+            print("check_bid_const_sol")
+            print("check_bid_const_sol")
+            print("check_bid_const_sol")
+            
+        
+            for j in range(self.nTimeslot):
+                
+                lh = P_bid[j]
+                rh = 0
+                for i in range(self.nWT):
+                    
+                    rh += P_wt[i,j]
+  
+                for i  in range(self.nPV):
+                    
+                    rh += P_pv[i,j]
+
+                for i in range(self.nESS):
+                    
+                    rh += P_essDis[i,j]
+
+                    rh -= P_essChg[i,j]
+
+                if lh > rh + 0.0001 or lh < rh - 0.0001:
+                    
+                    print(f"violation occurs at time {j}")
+                    print(lh, rh)
+                    
+                self.lhs_bid.append(lh)
+                self.rhs_bid.append(rh)
+                
+        const_list_set = list(zip(self.lhs_bid, self.rhs_bid))
+        for i in range(len(const_list_set)):
+            print(const_list_set[i])
+                
+        return self.lhs_bid, self.rhs_bid
+    
+    def check_res_const_sol(self):
+        
+        self.lhs = []
+        self.rhs = []
+        
+        
+        P_wt = self.P_dict['wt'] 
+        P_pv = self.P_dict['pv']
+        P_wt_uncertainty = self.P_dict['wt_uncertainty']
+        P_pv_uncertainty = self.P_dict['pv_uncertainty']
+        
+        
+        if self.is_res_var:
+            
+            print("Risk_averse_Check_res_const_sol")
+            print("Risk_averse_Check_res_const_sol")
+            print("Risk_averse_Check_res_const_sol")
+            for j in range(self.nTimeslot):
+                
+                for i in range(self.nWT):
+                    lh = P_wt[i,j]
+                    
+                    if self.is_case2:
+                        
+                        if self.is_case_risk_averse:
+                            
+                            rh = ((1-P_wt_uncertainty[i,j]) 
+                                  * self.wt_list[i].max_power 
+                                  * self.wt_list[i].profile[j])
+                        
+                        else:
+                            rh = ((1+P_wt_uncertainty[i,j]) 
+                            * self.wt_list[i].max_power 
+                            * self.wt_list[i].profile[j])
+                    else:
+                        rh = self.wt_list[i].max_power * self.wt_list[i].profile[j]
+                                     
+                    if lh > rh + 0.001:
+                        print(f"violation occurs on WT{i} at time {j} ")
+                        print(lh, rh)                        
+                        
+                    self.lhs.append(lh)
+                    self.rhs.append(rh)
+                
+                for i in range(self.nPV):
+                    
+                    lh = P_pv[i,j]
+                    
+                    if self.is_case2:
+                        if self.is_case_risk_averse:
+                            
+                            rh = ((1-P_pv_uncertainty[i,j]) 
+                            * self.pv_list[i].max_power 
+                            * self.pv_list[i].profile[j])
+                            
+                        else:
+                            
+                            rh = ((1+P_wt_uncertainty[i,j]) 
+                            * self.wt_list[i].max_power 
+                            * self.wt_list[i].profile[j])
+                    
+                    else:
+                        
+                        rh = ((1+P_pv_uncertainty[i,j]) 
+                        * self.pv_list[i].max_power 
+                        * self.pv_list[i].profile[j])    
+                        
+                        
+                    if lh > rh + 0.001:
+                        print(f"violation occurs on PV{i} at time {j} ")
+                        print(lh, rh)
+                        
+                            
+     
+                    self.lhs.append(lh)
+                    self.rhs.append(rh)
+
+                    
+            bid_type = self.case_dict['bid_type']
+            print(f'{bid_type}-check_res_const')
+            print("(LHS, RHS) - WT + PV ")
+            const_list_set = list(zip(self.lhs, self.rhs))
+            for i in range(len(const_list_set)):
+                print(const_list_set[i])
+            
+            return self.lhs, self.rhs
+                
