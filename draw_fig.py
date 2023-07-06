@@ -82,6 +82,30 @@ class Opt_Bid_Plot:
         self.da_smp = self.model_dict['da_smp']
         
         self.case_dict = case_dict
+        self.is_case1 = self.case_dict['case'] == 1
+        self.is_case2 = self.case_dict['case'] == 2
+        self.is_case3 = self.case_dict['case'] == 3
+        self.is_case4 = self.case_dict['case'] == 4
+        
+
+        if self.is_case1:
+            self.is_res_var = True
+            self.is_uncertainty = False
+        elif self.is_case2:
+            self.is_res_var = True
+            self.is_uncertainty = True
+        elif self.is_case3:
+            self.is_res_var = False
+            self.is_uncertainty = False
+        elif self.is_case4:
+            self.is_res_var = True
+            self.is_uncertainty = False           
+        else:
+            raise Exception("No Considered Case at init is_res_var")
+        
+        
+        
+        
         self.path = path
         
         self.nVPP = self.model_dict['nVPP']
@@ -132,7 +156,7 @@ class Opt_Bid_Plot:
             self.P_essChgSol = P_dict['essChg']
         
         
-        if self.case_dict['res_var'] == True:
+        if self.is_res_var:
             self.P_wtSol = P_dict['wt']
             self.P_pvSol = P_dict['pv']
         else:
@@ -163,6 +187,7 @@ class Opt_Bid_Plot:
         plt.title('SMP [Won/kWh] & Bid (kWh)')
         ax1.plot(np.arange(self.nTimeslot),self.P_bidSol, label='P_Bid', color='blue', alpha = 0.8)
         self.plt_setting('P_Bid [kWh]')
+        plt.legend(loc='upper left', ncol=3, fontsize=self.legend_fontsize)
         ax2 = ax1.twinx()
         ax2.plot(np.arange(self.nTimeslot),self.da_smp, label='SMP', color='red', alpha = 0.8)
         self.plt_setting('SMP [Won/kWh]')
@@ -176,9 +201,9 @@ class Opt_Bid_Plot:
                 plt.bar(np.arange(self.nTimeslot), -sum(self.P_essChgSol), label = 'ESS_Chg', color ='purple', alpha = 0.7)
                 plt.bar(np.arange(self.nTimeslot), sum(self.P_essDisSol), label = 'ESS_Dis', color ='orange', alpha = 0.7)
         
-            plt.bar(np.arange(self.nTimeslot), self.P_resSol - sum(self.P_essChgSol), bottom= sum(self.P_essDisSol), label = 'WT + PV', color ='green', alpha = 0.7)
-            
-                
+                plt.bar(np.arange(self.nTimeslot), self.P_resSol - sum(self.P_essChgSol), bottom= sum(self.P_essDisSol), label = 'WT + PV', color ='green', alpha = 0.7)
+            else:
+                plt.bar(np.arange(self.nTimeslot), self.P_resSol, bottom= np.zeros(self.nTimeslot), label = 'WT + PV', color ='green', alpha = 0.7)
             self.plt_setting('Power [kWh]')
         else:
             print(" Need to Develop for more than 2 VPP")
@@ -219,7 +244,7 @@ class Opt_Bid_Plot:
             self.P_essChgSol = P_dict['essChg']
         
         
-        if self.case_dict['res_var'] == True:
+        if self.is_res_var:
             self.P_wtSol = P_dict['wt']
             self.P_pvSol = P_dict['pv']
         else:

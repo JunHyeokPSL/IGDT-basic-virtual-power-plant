@@ -114,11 +114,14 @@ class aggregator:
             for i in range(len(res_list)):
                 for j in range(len(res_list[i])):
                     data_list.append(res_list[i][j].get_res_data())
-                    self.total_max_power[j] += res_list[i][j].max_power 
-                    self.total_min_power[j] += res_list[i][j].min_power           
+                    for step in range(self.nTimeslot):
+                        self.total_max_power[step] += res_list[i][j].max_power 
+                        self.total_min_power[step] += res_list[i][j].min_power           
             
-        self.res_table = pd.DataFrame(data_list,columns=['name', 'type', 'number', 'min_power', 'max_power','capacity'])
-        
+        if self.ess_list:
+            self.res_table = pd.DataFrame(data_list,columns=['name', 'type', 'number', 'min_power', 'max_power','capacity'])
+        else:
+            self.res_table = pd.DataFrame(data_list,columns=['name', 'type', 'number', 'min_power', 'max_power'])
     def get_res_table(self):
         
         try:
